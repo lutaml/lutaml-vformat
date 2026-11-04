@@ -61,6 +61,12 @@ RSpec.describe "vObject model round trip" do
       expect(parsed.n.given).to be_nil
     end
 
+    it "keeps an empty item inside a multi-valued field" do
+      parsed = card_class.from_vobject("BEGIN:VCARD\nN:Doe;;Q,\nEND:VCARD\n")
+      expect(parsed.n.additional).to eq(["Q", ""])
+      expect(parsed.to_vobject).to include("N:Doe;;Q,\r\n")
+    end
+
     it "unfolds long lines, multibyte characters included" do
       note = "日本語" * 60
       folded = Lutaml::Vformat::Folding.fold("NOTE:#{note}")

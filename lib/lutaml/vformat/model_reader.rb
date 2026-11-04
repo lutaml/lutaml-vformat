@@ -104,7 +104,10 @@ module Lutaml
 
       def field_values(attribute, rule, slots)
         type = type_of(attribute)
-        Array(slots[rule.name]).reject(&:empty?).map do |text|
+        # An empty field is no value; an empty item inside a list is kept.
+        values = Array(slots[rule.name])
+        values = [] if values == [""]
+        values.map do |text|
           Codec.read(type, text, value_type: rule.value_type)
         end
       end
