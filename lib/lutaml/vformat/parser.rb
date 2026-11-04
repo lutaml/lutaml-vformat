@@ -34,11 +34,20 @@ module Lutaml
 
       private
 
-      # Non-blank unfolded lines with their 1-based number.
+      # Non-blank unfolded lines with their 1-based number. LF, CRLF and
+      # CR CR LF endings are all read.
       def lines
-        Folding.unfold(@text).split(/\r*\n/).each_with_index
+        Folding.unfold(lf_endings(@text)).split("\n").each_with_index
           .reject { |line, _| line.strip.empty? }
           .map { |line, index| [line, index + 1] }
+      end
+
+      # Linear, unlike a /\r+\n/ match, on long runs of CR.
+      def lf_endings(text)
+        text.split("\n", -1).map do |line|
+          line = line.chop while line.end_with?("\r")
+          line
+        end.join("\n")
       end
 
       def normalize(data)
