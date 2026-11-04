@@ -1,0 +1,10 @@
+= lutaml-vformat
+
+The vObject wire format (RFC 6350 vCard, RFC 5545 iCalendar style) for
+https://github.com/lutaml/lutaml-model[lutaml-model].
+
+Status: skeleton. See the `feat/vformat-v1` branch for the implementation.
+
+== License
+
+BSD-2-Clause. See link:LICENSE.md[LICENSE.md].
