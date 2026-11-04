@@ -57,7 +57,8 @@ RSpec.describe Lutaml::Vformat::Parser do
 
     it "accepts CR CR LF line endings, leaving no CR in values" do
       text = "BEGIN:A\r\r\nX:ab\r\r\n c\r\r\nEND:A\r\r\n"
-      expect(parse_vobject(text)).to eq(parse_vobject("BEGIN:A\nX:abc\nEND:A\n"))
+      expected = parse_vobject("BEGIN:A\nX:abc\nEND:A\n")
+      expect(parse_vobject(text)).to eq(expected)
     end
 
     it "ignores a leading byte order mark" do
