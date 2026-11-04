@@ -34,7 +34,7 @@ module Lutaml
       end
 
       def unfold(text)
-        text.gsub(/\r?\n[ \t]/, "")
+        text.gsub(/\r*\n[ \t]/, "")
       end
 
       # Largest end offset, at most +budget+ bytes after +pos+, that is not

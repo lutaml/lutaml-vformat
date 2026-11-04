@@ -7,6 +7,7 @@ module Lutaml
     # Text to Components. Unfolds first, then reads content lines.
     class Parser
       NAME = /[A-Za-z0-9-]+/
+      BARE_ENCODINGS = %w[BASE64 QUOTED-PRINTABLE 8BIT 7BIT].freeze
       GROUP_AND_NAME = /(?:(?<group>#{NAME})\.)?(?<name>#{NAME})/
       PARAM_VALUE = /"[^"]*"|[^";:,]*/
 
@@ -35,7 +36,7 @@ module Lutaml
 
       # Non-blank unfolded lines with their 1-based number.
       def lines
-        Folding.unfold(@text).split(/\r?\n/).each_with_index
+        Folding.unfold(@text).split(/\r*\n/).each_with_index
           .reject { |line, _| line.strip.empty? }
           .map { |line, index| [line, index + 1] }
       end
@@ -111,11 +112,15 @@ module Lutaml
         end
 
         name = scanner.matched.upcase
-        unless scanner.scan("=")
-          raise ParseError, "line #{number}: parameter #{name} has no value"
-        end
+        return bare_param(name) unless scanner.scan("=")
 
         [name, scan_param_values(scanner)]
+      end
+
+      # vCard 2.1 style "TEL;WORK:" or "PHOTO;BASE64:". Address books still
+      # write these in 3.0 cards, so read them as TYPE or ENCODING values.
+      def bare_param(name)
+        BARE_ENCODINGS.include?(name) ? ["ENCODING", [name]] : ["TYPE", [name]]
       end
 
       def scan_param_values(scanner)

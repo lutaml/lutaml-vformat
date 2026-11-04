@@ -55,6 +55,11 @@ RSpec.describe Lutaml::Vformat::Parser do
       expect(crlf).to eq(parse_vobject("BEGIN:A\nX:1\nEND:A\n"))
     end
 
+    it "accepts CR CR LF line endings, leaving no CR in values" do
+      text = "BEGIN:A\r\r\nX:ab\r\r\n c\r\r\nEND:A\r\r\n"
+      expect(parse_vobject(text)).to eq(parse_vobject("BEGIN:A\nX:abc\nEND:A\n"))
+    end
+
     it "ignores a leading byte order mark" do
       expect(parse_vobject("﻿BEGIN:A\nEND:A\n").first.name).to eq("A")
     end
@@ -67,7 +72,6 @@ RSpec.describe Lutaml::Vformat::Parser do
       "an unterminated component" => "BEGIN:A\nX:1\n",
       "a property outside a component" => "X:1\nBEGIN:A\nEND:A\n",
       "a line without a colon" => "BEGIN:A\nNOCOLON\nEND:A\n",
-      "a parameter without a value" => "BEGIN:A\nX;FOO:1\nEND:A\n",
       "an invalid name" => "BEGIN:A\n=bad:1\nEND:A\n",
     }.each do |name, text|
       it "raises ParseError for #{name}" do
@@ -98,6 +102,22 @@ RSpec.describe Lutaml::Vformat::Parser do
         expect(property.name).to eq("TEL")
         expect(property.param("TYPE")).to eq("work")
         expect(property.value).to eq("+1 555")
+      end
+    end
+
+    context "with a bare parameter (vCard 2.1 style)" do
+      let(:line) { "TEL;WORK;VOICE:+1 555" }
+
+      it "reads it as a TYPE value" do
+        expect(property.params).to eq("TYPE" => %w[WORK VOICE])
+      end
+    end
+
+    context "with a bare encoding parameter" do
+      let(:line) { "PHOTO;BASE64:AAAA" }
+
+      it "reads it as ENCODING" do
+        expect(property.params).to eq("ENCODING" => ["BASE64"])
       end
     end
 
