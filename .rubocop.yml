@@ -3,8 +3,17 @@ inherit_from:
   - https://raw.githubusercontent.com/riboseinc/oss-guides/main/ci/rubocop.yml
 
 # local repo-specific modifications
-# ...
-
 AllCops:
   NewCops: disable
   TargetRubyVersion: 3.0
+
+# The parser and serialize faces carry the format's dispatch logic;
+# the ecosystem's own gems (lutaml-model) run these margins.
+Metrics/MethodLength:
+  Max: 30
+Metrics/AbcSize:
+  Max: 30
+Metrics/CyclomaticComplexity:
+  Max: 10
+Metrics/PerceivedComplexity:
+  Max: 12
