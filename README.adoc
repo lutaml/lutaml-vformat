@@ -3,7 +3,50 @@
 The vObject wire format (RFC 6350 vCard, RFC 5545 iCalendar style) for
 https://github.com/lutaml/lutaml-model[lutaml-model].
 
-Status: skeleton. See the `feat/vformat-v1` branch for the implementation.
+Loading the gem registers the `:vobject` format into
+`Lutaml::Model::FormatRegistry`, which defines the `vobject` mapping DSL
+on `Lutaml::Model::Serializable` models:
+
+[source,ruby]
+----
+require "lutaml/vformat"
+
+class Vcard < Lutaml::Model::Serializable
+  attribute :fn, :string
+  attribute :tel, :string, collection: true
+
+  vobject do
+    type :component
+    component_root "VCARD"
+    map_property "FN", to: :fn
+    map_property "TEL", to: :tel
+  end
+end
+
+vcard = Vcard.from_vobject(<<~VOBJECT)
+  BEGIN:VCARD
+  FN:John Doe
+  TEL;TYPE=work:+1-555
+  END:VCARD
+VOBJECT
+vcard.to_vobject
+----
+
+== Coverage
+
+* BEGIN/END component nesting with ordered properties
+* Property parameters, including quoted values with embedded separators
+* Property groups (`item1.TEL:…`)
+* Structured values (`map_field_set` / `map_field` by index)
+* The vObject value types: text, uri, binary, boolean, integer, float,
+  utc-offset, language-tag, date-and-or-time (basic and extended
+  ISO 8601 spellings)
+* RFC 6350 §3.4 text escaping and §3.2 75-octet line folding
+  (multi-byte safe)
+
+The vCard vocabulary gem (RFC 6350 properties as lutaml-model classes)
+builds on this wire format as a separate gem
+(https://github.com/lutaml/lutaml-model/issues/172[lutaml-model#172]).
 
 == License
 
