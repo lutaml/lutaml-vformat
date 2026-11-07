@@ -1,9 +1,171 @@
 = lutaml-vformat
 
-The vObject wire format (RFC 6350 vCard, RFC 5545 iCalendar style) for
-https://github.com/lutaml/lutaml-model[lutaml-model].
+The vObject wire format (the line format shared by RFC 6350 vCard and RFC 5545
+iCalendar) for https://github.com/lutaml/lutaml-model[lutaml-model]. The gem
+registers a `:vobject` format into `Lutaml::Model::FormatRegistry` when it is
+required, so models gain `from_vobject` and `to_vobject`.
 
-Status: skeleton. See the `feat/vformat-v1` branch for the implementation.
+This gem is the wire layer only. It has no vCard or iCalendar vocabulary; the
+vCard property set is a separate gem built on this one.
+
+== Installation
+
+[source,ruby]
+----
+gem "lutaml-vformat"
+----
+
+Requires `lutaml-model` `~> 0.8.164` (the version the registration API was
+measured against) and Ruby 3.0 or later.
+
+== What it covers
+
+* `BEGIN:` / `END:` component nesting to any depth
+* property parameters, including quoted values and comma-separated lists
+* property groups (`item1.TEL`)
+* structured values (`;` between fields, `,` between values in a field)
+* text escaping: backslash, comma, semicolon and newline
+* line folding at 75 octets (counted in octets, never inside a UTF-8
+  sequence) and unfolding
+* value types: text, uri, binary, boolean, integer, float, utc-offset,
+  language-tag, date-and-or-time
+
+Output uses CRLF line endings and ends with one.
+
+== Usage
+
+[source,ruby]
+----
+require "lutaml/vformat"
+
+class Phone < Lutaml::Model::Serializable
+  attribute :number, :string
+  attribute :types, :string, collection: true
+  attribute :pref, :integer
+
+  vobject do
+    type :property
+    map_value to: :number
+    map_param "TYPE", to: :types
+    map_param "PREF", to: :pref
+  end
+end
+
+class PersonName < Lutaml::Model::Serializable
+  attribute :family, :string
+  attribute :given, :string
+
+  vobject do
+    type :property
+    map_field 0, to: :family   # N:family;given
+    map_field 1, to: :given
+  end
+end
+
+class Card < Lutaml::Model::Serializable
+  attribute :fn, :string
+  attribute :n, PersonName
+  attribute :tel, Phone, collection: true
+  attribute :bday, Lutaml::Vformat::Value::DateAndOrTime
+
+  vobject do
+    type :component
+    component_root "VCARD"
+    map_property "FN", to: :fn
+    map_property "N", to: :n
+    map_property "TEL", to: :tel
+    map_property "BDAY", to: :bday
+  end
+end
+
+card = Card.from_vobject(<<~VCARD.gsub("\n", "\r\n"))
+  BEGIN:VCARD
+  FN:Jo Doe
+  N:Doe;Jo
+  TEL;TYPE=work,voice;PREF=1:+1 555 0100
+  BDAY:19850412
+  END:VCARD
+VCARD
+
+card.tel.first.types  # => ["work", "voice"]
+card.bday.kind        # => :date
+card.to_vobject       # => "BEGIN:VCARD\r\nFN:Jo Doe\r\n..."
+----
+
+=== Mapping DSL
+
+Inside `vobject do ... end`:
+
+[cols="2,5"]
+|===
+| `type :component` / `type :property` | What the model represents.
+| `component_root "NAME"` | The `BEGIN:` name of a top-level component model.
+| `map_property "NAME", to: :attr` | A content line of the component. The attribute is a scalar type or a `:property` model. Repeated lines need `collection: true`.
+| `map_component "NAME", to: :attr` | A nested `BEGIN:NAME` block; the attribute is a `:component` model.
+| `map_value to: :attr` | In a property model: the property value.
+| `map_param "NAME", to: :attr` | In a property model: a parameter. A `collection: true` attribute receives every value.
+| `map_group to: :attr` | In a property model: the group prefix.
+| `map_field index, to: :attr` | In a property model: one field of a structured value.
+|===
+
+`map_property`, `map_value`, `map_param` and `map_field` accept
+`value_type:` (`:text`, `:uri`, `:binary`, `:boolean`, `:integer`, `:float`,
+`:utc_offset`, `:language_tag`, `:date_and_or_time`). Without it the type
+comes from the attribute (`:string`, `:integer`, `:float`, `:boolean` and the
+`Lutaml::Vformat::Value` classes).
+
+=== Value types
+
+[cols="2,3,3"]
+|===
+| Type | Ruby object | Wire form
+
+| `Value::Text` | `String` | escaped
+| `Value::Uri` | `String` | as is
+| `Value::Binary` | `Value::Binary::Blob` (`#bytes`) | strict base64
+| `Value::Boolean` | `true` / `false` | `TRUE` / `FALSE`
+| `Value::Integer` | `Integer` | `-12`
+| `Value::Float` | `Float` | `1.5`, never exponent form
+| `Value::UtcOffset` | `Integer` (seconds east of UTC) | `+0530`, `-0800`
+| `Value::LanguageTag` | `String` | RFC 5646 tag
+| `Value::DateAndOrTime` | `Value::DateAndOrTime::Instant` (`#kind`, `#to_s`) | `19850412`, `--0412`, `19961022T140000Z`, `T1022`
+|===
+
+Each class has `.parse(wire)` and `.format(object)`; an invalid wire value
+raises `Lutaml::Vformat::ValueError`.
+
+=== Without models
+
+[source,ruby]
+----
+document = Lutaml::Vformat::Document.parse(text)
+event = document.component("VCALENDAR").components_named("VEVENT").first
+event.property("DTSTART").value
+event.property("DTSTART").param("TZID")
+document.to_vobject
+----
+
+Names and parameter names are case-insensitive and kept upper-case.
+Property values stay in wire (escaped) form; use `Property#text` or
+`Property#fields` for the unescaped view.
+
+== Errors
+
+Malformed input (unbalanced `BEGIN`/`END`, a line without `:`, invalid
+UTF-8, a value that does not match its type) raises
+`Lutaml::Vformat::ParseError`; through `Model.from_vobject` it surfaces as
+`Lutaml::Model::InvalidFormatError`. A parameter value that contains a double
+quote cannot be written and raises `Lutaml::Vformat::SerializeError`.
+
+== Not covered in 0.1.0
+
+* the vCard and iCalendar vocabularies
+* vCard 2.1 syntax (bare parameters such as `TEL;WORK:`, quoted-printable)
+* RFC 6868 caret encoding of parameter values
+* the `VALUE=` parameter: it is available as `Property#value_type` but models
+  neither read nor write it; name the type with `value_type:` or the
+  attribute type
+* converting `DateAndOrTime` to `Date` or `Time`
 
 == License
 
