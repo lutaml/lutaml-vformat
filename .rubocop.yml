@@ -17,3 +17,6 @@ Metrics/CyclomaticComplexity:
   Max: 10
 Metrics/PerceivedComplexity:
   Max: 12
+Naming/PredicateMethod:
+  AllowedMethods:
+    - to_bool

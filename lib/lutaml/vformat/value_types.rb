@@ -119,11 +119,13 @@ module Lutaml
           VALID_VALUES.include?(@value)
         end
 
-        # rubocop:disable Naming/PredicatePrefix
+        # The RFC spells this a value TRANSFORM, not a predicate; the
+        # `to_` prefix follows the Integer#to_i / Float#to_f pattern.
+        # rubocop:disable Naming/PredicateMethod
         def to_bool
           @value.upcase == "TRUE"
         end
-        # rubocop:enable Naming/PredicatePrefix
+        # rubocop:enable Naming/PredicateMethod
       end
 
       class Integer < Base
