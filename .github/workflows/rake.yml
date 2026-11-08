@@ -14,10 +14,5 @@ on:
 jobs:
   rake:
     uses: metanorma/ci/.github/workflows/generic-rake.yml@main
-    with:
-      # No LUTAML_CI_PAT_TOKEN secret in this repo: the tests->do-release
-      # cascade would fail its dispatch. Releases are dispatched manually
-      # (OIDC trusted publishing).
-      cascade: false
     secrets:
       pat_token: ${{ secrets.LUTAML_CI_PAT_TOKEN }}
